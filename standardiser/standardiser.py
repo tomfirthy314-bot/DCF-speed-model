@@ -109,11 +109,11 @@ _HARD_BLOCKER_FIELDS = [
     "capex",
     "cash",
     "debt",
-    "shares_outstanding",
 ]
 
 # Soft requirements: absent triggers a warning, not a blocker
 _SOFT_REQUIRED_FIELDS = [
+    "shares_outstanding",
     "gross_profit",
     "ebitda",
     "da",

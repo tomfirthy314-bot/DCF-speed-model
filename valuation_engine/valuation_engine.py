@@ -102,12 +102,9 @@ def run_valuation_engine(forecasted: dict) -> dict:
     # -------------------------------------------------------------------------
     bridge_inputs = _get_bridge_inputs(years_data, base_year, norm, stats)
 
-    if bridge_inputs["shares_outstanding"] is None:
-        blockers.append("BLOCKER: Shares outstanding missing — cannot calculate value per share")
-        return _fail(forecasted, blockers)
-    if bridge_inputs["shares_outstanding"] <= 0:
-        blockers.append("BLOCKER: Shares outstanding ≤ 0")
-        return _fail(forecasted, blockers)
+    if bridge_inputs["shares_outstanding"] is not None and bridge_inputs["shares_outstanding"] <= 0:
+        warnings.append("WARNING: Shares outstanding ≤ 0 — value per share will be omitted")
+        bridge_inputs["shares_outstanding"] = None
 
     if bridge_inputs["debt"] is None:
         warnings.append(
