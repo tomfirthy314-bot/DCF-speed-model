@@ -264,6 +264,11 @@ def fetch_yahoo_data(ticker: str) -> dict:
             "cash_and_equivalents": _get(balance_sheet, "Cash And Cash Equivalents",           col),
             "total_equity":         _get(balance_sheet, "Stockholders Equity",                 col),
             "retained_earnings":    _get(balance_sheet, "Retained Earnings",                   col),
+            # Shares outstanding — pulled from balance sheet (not .info) so rate-limiting doesn't affect it
+            "shares_outstanding":   (_get(balance_sheet, "Ordinary Shares Number",             col)
+                                    or _get(balance_sheet, "Share Issued",                     col)
+                                    or _get(income_stmt,  "Diluted Average Shares",            col)
+                                    or _get(income_stmt,  "Basic Average Shares",              col)),
 
             # --- Cash flow ---
             "operating_cash_flow":  _get(cash_flow, "Operating Cash Flow",                     col),
