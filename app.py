@@ -446,11 +446,8 @@ def _run_pipeline(company: str, log_q: queue.Queue, result_q: queue.Queue):
         result_q.put(valued)
 
     except Exception as e:
-        import traceback
-        tb = traceback.format_exc()
         log(f"  ✗  Error: {e}", "flag")
-        log(f"  Traceback:\n{tb}", "flag")
-        result_q.put(RuntimeError(f"{e}\n\nTraceback:\n{tb}"))
+        result_q.put(e)
 
 
 # ---------------------------------------------------------------------------

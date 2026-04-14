@@ -1274,7 +1274,8 @@ def _build_sensitivity_sheet(wb: Workbook, valued: dict, meta: dict):
 
     r += 1
     ccy_s = stats.get("currency", "")
-    note = (f"Current price: {ccy_s} {current_price:.2f}  |  "
+    price_str = f"{ccy_s} {current_price:.2f}" if current_price is not None else "n/a"
+    note = (f"Current price: {price_str}  |  "
             f"Green = above current price  |  Red = below current price  |  "
             f"Rows = terminal growth  |  Columns = WACC")
     _merge_write(ws, r, 1, len(wacc_vals) + 1, note,
