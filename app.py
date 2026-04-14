@@ -213,8 +213,14 @@ def _run_pipeline(company: str, log_q: queue.Queue, result_q: queue.Queue):
         from excel_model import build_model
 
         # Stage 1 — Scrape
+        # Cache the data engine result by company name for 1 hour to avoid
+        # hammering Yahoo Finance's rate limits on Streamlit Cloud's shared IP.
+        @st.cache_data(ttl=3600, show_spinner=False)
+        def _cached_data_engine(co):
+            return run_data_engine(co)
+
         log("Resolving ticker and fetching data…", "info")
-        data = run_data_engine(company)
+        data = _cached_data_engine(company)
         if data is None:
             result_q.put(RuntimeError(
                 f"No financial data found for '{company}'. "

@@ -11,9 +11,26 @@ Pulls:
                       sector, country, trailing/forward PE, price-to-book, ROE, ROA
 """
 
+import time
 import yfinance as yf
 import pandas as pd
 import requests
+
+
+def _yf_info_with_retry(ticker: str, retries: int = 3) -> dict:
+    """Fetch yfinance info with exponential backoff on rate-limit errors."""
+    for attempt in range(retries):
+        try:
+            info = yf.Ticker(ticker).info
+            return info
+        except Exception as e:
+            msg = str(e).lower()
+            if "too many requests" in msg or "rate limit" in msg or "429" in msg:
+                wait = 4 ** attempt  # 1s, 4s, 16s
+                time.sleep(wait)
+            else:
+                raise
+    return {}  # exhausted retries
 
 # ---------------------------------------------------------------------------
 # Well-known name aliases → preferred ticker
@@ -114,14 +131,12 @@ def search_ticker(company_input: str) -> tuple[str, str]:
     # 1. Alias table (case-insensitive)
     alias_ticker = _NAME_ALIASES.get(clean.lower())
     if alias_ticker:
-        t = yf.Ticker(alias_ticker)
-        info = t.info
+        info = _yf_info_with_retry(alias_ticker)
         if info.get("symbol"):
             return info["symbol"], info.get("longName", alias_ticker)
 
     # 2. Direct ticker lookup (works instantly for AAPL, GOOGL, RR.L, SAP.DE …)
-    t = yf.Ticker(clean)
-    info = t.info
+    info = _yf_info_with_retry(clean)
     if info.get("symbol") and info.get("regularMarketPrice") is not None:
         return info["symbol"], info.get("longName", clean)
 
@@ -129,9 +144,7 @@ def search_ticker(company_input: str) -> tuple[str, str]:
     result = _yahoo_search(clean)
     if result:
         resolved_ticker, resolved_name = result
-        # Fetch full info now we have a proper ticker
-        t2 = yf.Ticker(resolved_ticker)
-        info2 = t2.info
+        info2 = _yf_info_with_retry(resolved_ticker)
         if info2.get("symbol"):
             return info2["symbol"], info2.get("longName", resolved_name)
         return resolved_ticker, resolved_name
@@ -147,8 +160,8 @@ def fetch_yahoo_data(ticker: str) -> dict:
     Pull all three financial statements plus key stats from Yahoo Finance.
     Returns a structured dict keyed by year for financial data.
     """
-    t = yf.Ticker(ticker)
-    info = t.info
+    t    = yf.Ticker(ticker)
+    info = _yf_info_with_retry(ticker)
 
     # -------------------------------------------------------------------------
     # Key stats & ratios (point-in-time, not historical)
