@@ -574,9 +574,21 @@ def _render_result(valued: dict):
 </div>
 """, unsafe_allow_html=True)
 
-    # Download button
+    # Download button — prominent call to action
     excel_path = valued.get("_excel_path")
     if excel_path and os.path.exists(excel_path):
+        st.markdown(
+            "<div style='background:#1a2e1a;border:1px solid #a3be8c;border-radius:8px;"
+            "padding:14px 18px;margin:16px 0 4px;display:flex;align-items:center;gap:12px;'>"
+            "<div style='font-size:1.4rem;'>📊</div>"
+            "<div><div style='font-size:0.9rem;font-weight:700;color:#a3be8c;'>"
+            "Full model available to download</div>"
+            "<div style='font-size:0.78rem;color:#7b8799;margin-top:2px;'>"
+            "10-year forecast · Bear / Base / Bull scenarios · Source comparison · "
+            "Data audit · Assumptions · Comparables — all in one spreadsheet</div></div>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
         with open(excel_path, "rb") as fh:
             st.download_button(
                 label="⬇  Download Excel Model",
@@ -716,57 +728,65 @@ def _render_result(valued: dict):
                     unsafe_allow_html=True,
                 )
 
-    # Comparables section
+    # ── Expander 1: Comparable Companies ─────────────────────────────────────
     comps = valued.get("comparables", {})
     if comps.get("available"):
-        med  = comps.get("median", {})
-        impl = comps.get("implied_from_peers", {})
-        rng  = impl.get("vps_range", [])
+        med   = comps.get("median", {})
+        impl  = comps.get("implied_from_peers", {})
+        rng   = impl.get("vps_range", [])
         peers = comps.get("peers", [])
 
         def _mx(v): return f"{v:.1f}×" if v is not None else "—"
-        def _mp(v): return f"{ccy} {v:.2f}" if v is not None else "—"
 
-        vps_range_str = ""
-        if rng and len(rng) == 3:
-            vps_range_str = f"{ccy} {rng[0]:.2f} – {rng[2]:.2f}"
+        vps_range_str = f"{ccy} {rng[0]:.2f} – {rng[2]:.2f}" if rng and len(rng) == 3 else ""
+        comp_label = (
+            f"Comparable Companies — {len(peers)} peers · peer-implied {vps_range_str}"
+            if vps_range_str else f"Comparable Companies — {len(peers)} peers"
+        )
+        with st.expander(comp_label, expanded=True):
 
-        label = f"Comparable Companies — {len(peers)} peers · peer-implied VPS {vps_range_str}" if vps_range_str else f"Comparable Companies — {len(peers)} peers"
-        with st.expander(label, expanded=False):
-
-            # Peer-implied VPS banner
+            # VPS comparison banner
             if rng and len(rng) == 3:
+                dcf_vs_peer = vps - rng[1] if vps else None
+                vs_str = ""
+                if dcf_vs_peer is not None:
+                    vs_str = (
+                        f"<div style='margin-left:auto;text-align:right;'>"
+                        f"<div style='font-size:0.72rem;color:#7b8799;text-transform:uppercase;letter-spacing:0.05em;'>DCF vs peer mid</div>"
+                        f"<div style='font-size:1.0rem;font-weight:600;color:{'#a3be8c' if dcf_vs_peer >= 0 else '#bf616a'};'>"
+                        f"{'▲' if dcf_vs_peer >= 0 else '▼'} {ccy} {abs(dcf_vs_peer):.2f} {'premium' if dcf_vs_peer >= 0 else 'discount'}"
+                        f"</div></div>"
+                    )
                 st.markdown(
-                    f"<div style='display:flex;gap:24px;padding:10px 0 14px;border-bottom:1px solid #2e3440;'>"
+                    f"<div style='display:flex;gap:24px;align-items:flex-end;padding:10px 0 14px;border-bottom:1px solid #2e3440;'>"
                     f"<div><div style='font-size:0.72rem;color:#7b8799;text-transform:uppercase;letter-spacing:0.05em;'>Peer-implied low</div>"
                     f"<div style='font-size:1.1rem;font-weight:600;color:#eceff4;'>{ccy} {rng[0]:.2f}</div></div>"
                     f"<div><div style='font-size:0.72rem;color:#7b8799;text-transform:uppercase;letter-spacing:0.05em;'>Peer-implied mid</div>"
                     f"<div style='font-size:1.1rem;font-weight:600;color:#88c0d0;'>{ccy} {rng[1]:.2f}</div></div>"
                     f"<div><div style='font-size:0.72rem;color:#7b8799;text-transform:uppercase;letter-spacing:0.05em;'>Peer-implied high</div>"
                     f"<div style='font-size:1.1rem;font-weight:600;color:#eceff4;'>{ccy} {rng[2]:.2f}</div></div>"
-                    f"<div style='margin-left:auto;'><div style='font-size:0.72rem;color:#7b8799;text-transform:uppercase;letter-spacing:0.05em;'>DCF base</div>"
+                    f"<div><div style='font-size:0.72rem;color:#7b8799;text-transform:uppercase;letter-spacing:0.05em;'>Our DCF</div>"
                     f"<div style='font-size:1.1rem;font-weight:600;color:#a3be8c;'>{ccy} {vps:.2f}</div></div>"
+                    f"{vs_str}"
                     f"</div>",
                     unsafe_allow_html=True,
                 )
 
-            # Peer table
             if peers:
                 rows_html = ""
                 for p in peers:
                     rows_html += (
-                        f"<tr>"
-                        f"<td style='padding:6px 8px;color:#eceff4;'>{p.get('ticker','—')}</td>"
-                        f"<td style='padding:6px 8px;color:#7b8799;font-size:0.8rem;'>{p.get('name','')[:28]}</td>"
+                        f"<tr style='border-bottom:1px solid #1e2535;'>"
+                        f"<td style='padding:6px 8px;color:#eceff4;font-weight:600;'>{p.get('ticker','—')}</td>"
+                        f"<td style='padding:6px 8px;color:#7b8799;font-size:0.8rem;'>{p.get('name','')[:30]}</td>"
                         f"<td style='padding:6px 8px;text-align:right;'>{_mx(p.get('ev_ebitda'))}</td>"
                         f"<td style='padding:6px 8px;text-align:right;'>{_mx(p.get('ev_ebit'))}</td>"
                         f"<td style='padding:6px 8px;text-align:right;'>{_mx(p.get('pe'))}</td>"
                         f"</tr>"
                     )
-                # Median row
                 rows_html += (
-                    f"<tr style='border-top:1px solid #2e3440;font-weight:600;'>"
-                    f"<td style='padding:6px 8px;color:#88c0d0;' colspan='2'>Median</td>"
+                    f"<tr style='border-top:2px solid #2e3440;font-weight:700;'>"
+                    f"<td style='padding:6px 8px;color:#88c0d0;' colspan='2'>Peer median</td>"
                     f"<td style='padding:6px 8px;text-align:right;color:#88c0d0;'>{_mx(med.get('ev_ebitda'))}</td>"
                     f"<td style='padding:6px 8px;text-align:right;color:#88c0d0;'>{_mx(med.get('ev_ebit'))}</td>"
                     f"<td style='padding:6px 8px;text-align:right;color:#88c0d0;'>{_mx(med.get('pe'))}</td>"
@@ -786,26 +806,161 @@ def _render_result(valued: dict):
                     unsafe_allow_html=True,
                 )
 
-    # Expandable: executive summary
-    exec_summary = explanation.get("executive_summary", [])
-    if exec_summary:
-        with st.expander("Executive Summary", expanded=False):
-            for bullet in exec_summary:
-                st.markdown(f"- {bullet}")
-
-    # Expandable: review agenda
-    agenda = explanation.get("review_agenda", [])
+    # ── Expander 2: Analysis ──────────────────────────────────────────────────
+    exec_summary  = explanation.get("executive_summary", [])
+    value_drivers = explanation.get("value_drivers", [])
+    agenda        = explanation.get("review_agenda", [])
     agenda_issues = [a for a in agenda if a.get("status") != "PASS"]
-    if agenda_issues:
-        with st.expander(f"Review Agenda — {len(agenda_issues)} item(s)", expanded=False):
-            for item in agenda_issues:
+
+    # Pull useful context for the prose
+    _stats     = valued.get("stats", {})
+    _norm      = valued.get("normalised", {})
+    _co        = valued.get("company_name", "")
+    _sector    = _stats.get("sector", "")
+    _country   = _stats.get("country", "")
+    _industry  = _stats.get("industry", "")
+    _classif   = valued.get("classification", "").replace("_", " ")
+    _rev       = _norm.get("revenue")
+    _ebit      = _norm.get("ebit")
+    _ebit_m    = _norm.get("ebit_margin")
+    _rev_cagr  = _norm.get("revenue_cagr_3yr") or _norm.get("revenue_cagr")
+    _fcf_m     = _norm.get("fcf_margin")
+    _dq        = valued.get("data_quality", {}).get("quality_score")
+
+    def _b(v):
+        if v is None: return "—"
+        try:
+            v = float(v)
+            if abs(v) >= 1e9: return f"{ccy} {v/1e9:.1f}B"
+            if abs(v) >= 1e6: return f"{ccy} {v/1e6:.0f}M"
+            return f"{ccy} {v:,.0f}"
+        except: return "—"
+
+    with st.expander("Analysis", expanded=True):
+
+        # — About the company —
+        st.markdown(
+            "<div style='font-size:0.72rem;color:#7b8799;text-transform:uppercase;"
+            "letter-spacing:0.06em;margin-bottom:6px;'>About the company</div>",
+            unsafe_allow_html=True,
+        )
+        about_parts = []
+        if _co:       about_parts.append(f"**{_co}**")
+        if _country:  about_parts.append(f"is headquartered in **{_country}**")
+        if _sector:   about_parts.append(f"and operates in the **{_sector}** sector")
+        if _industry and _industry != _sector:
+            about_parts.append(f"({_industry})")
+        if _classif:  about_parts.append(f"— classified as a **{_classif}** business")
+        if about_parts:
+            st.markdown(" ".join(about_parts) + ".")
+
+        # Use the first exec summary bullet if it has useful company context
+        if exec_summary:
+            st.markdown(
+                f"<div style='font-size:0.85rem;color:#b0bec5;line-height:1.6;"
+                f"margin-top:4px;'>{exec_summary[0]}</div>",
+                unsafe_allow_html=True,
+            )
+
+        st.markdown("<div style='margin:14px 0 6px;border-top:1px solid #2e3440;'></div>",
+                    unsafe_allow_html=True)
+
+        # — Financial picture —
+        st.markdown(
+            "<div style='font-size:0.72rem;color:#7b8799;text-transform:uppercase;"
+            "letter-spacing:0.06em;margin-bottom:6px;'>Financial picture</div>",
+            unsafe_allow_html=True,
+        )
+        fin_lines = []
+        if _rev:
+            fin_lines.append(f"Revenue stands at **{_b(_rev)}**")
+            if _rev_cagr is not None:
+                direction = "growing" if _rev_cagr > 0 else "contracting"
+                fin_lines[-1] += f", {direction} at **{abs(_rev_cagr):.1%} per year** over the last three years"
+            fin_lines[-1] += "."
+        if _ebit and _ebit_m:
+            profitability = (
+                "strong" if _ebit_m > 0.20 else
+                "healthy" if _ebit_m > 0.10 else
+                "modest" if _ebit_m > 0.03 else "thin"
+            )
+            fin_lines.append(
+                f"Operating profit (EBIT) is **{_b(_ebit)}**, representing a "
+                f"**{_ebit_m:.1%} margin** — {profitability} for the sector."
+            )
+        if _fcf_m is not None:
+            cash_quality = (
+                "excellent cash conversion" if _fcf_m > 0.10 else
+                "solid cash generation" if _fcf_m > 0.05 else
+                "moderate free cash flow" if _fcf_m > 0 else "negative free cash flow"
+            )
+            fin_lines.append(
+                f"Free cash flow margin is **{_fcf_m:.1%}**, indicating {cash_quality}."
+            )
+        # Value drivers from explainer
+        if value_drivers:
+            fin_lines.append("")
+            fin_lines.append("**What is driving the valuation:**")
+            for d in value_drivers[:4]:
+                fin_lines.append(f"- {d}")
+
+        for line in fin_lines:
+            st.markdown(
+                f"<div style='font-size:0.85rem;color:#b0bec5;line-height:1.6;'>{line}</div>",
+                unsafe_allow_html=True,
+            )
+
+        st.markdown("<div style='margin:14px 0 6px;border-top:1px solid #2e3440;'></div>",
+                    unsafe_allow_html=True)
+
+        # — Valuation view —
+        st.markdown(
+            "<div style='font-size:0.72rem;color:#7b8799;text-transform:uppercase;"
+            "letter-spacing:0.06em;margin-bottom:6px;'>Valuation view</div>",
+            unsafe_allow_html=True,
+        )
+        for bullet in exec_summary[1:]:
+            st.markdown(
+                f"<div style='font-size:0.85rem;color:#b0bec5;line-height:1.6;"
+                f"margin-bottom:6px;'>{bullet}</div>",
+                unsafe_allow_html=True,
+            )
+
+        # Peer context if available
+        if comps and comps.get("available") and rng and len(rng) == 3:
+            peer_tickers = ", ".join(p.get("ticker", "") for p in comps.get("peers", [])[:5])
+            dcf_in_range = rng[0] <= vps <= rng[2] if vps else False
+            range_comment = (
+                "consistent with what peers suggest"
+                if dcf_in_range else
+                f"{'above' if vps and vps > rng[2] else 'below'} the peer-implied range"
+            )
+            st.markdown(
+                f"<div style='font-size:0.85rem;color:#b0bec5;line-height:1.6;margin-bottom:6px;'>"
+                f"Against comparable companies ({peer_tickers}), the peer-implied share price range is "
+                f"**{ccy} {rng[0]:.2f} – {rng[2]:.2f}**. Our DCF base case of **{ccy} {vps:.2f}** "
+                f"is {range_comment}.</div>",
+                unsafe_allow_html=True,
+            )
+
+        # Flags / things to watch
+        if agenda_issues:
+            st.markdown("<div style='margin:14px 0 6px;border-top:1px solid #2e3440;'></div>",
+                        unsafe_allow_html=True)
+            st.markdown(
+                "<div style='font-size:0.72rem;color:#7b8799;text-transform:uppercase;"
+                "letter-spacing:0.06em;margin-bottom:6px;'>Things to sense-check</div>",
+                unsafe_allow_html=True,
+            )
+            for item in agenda_issues[:4]:
                 colour = "#bf616a" if item["status"] == "FLAG" else "#ebcb8b"
+                icon   = "⚑" if item["status"] == "FLAG" else "⚠"
                 st.markdown(
-                    f"**{item['priority']}. [{item['status']}] {item['item']}** "
-                    f"<span style='color:{colour};'>({item['value']})</span>",
+                    f"<div style='font-size:0.83rem;color:#b0bec5;line-height:1.6;"
+                    f"margin-bottom:4px;'>{icon} <span style='color:{colour};font-weight:600;'>"
+                    f"{item['item']}</span> — {item['action']}</div>",
                     unsafe_allow_html=True,
                 )
-                st.caption(item["action"])
 
 
 # ---------------------------------------------------------------------------
