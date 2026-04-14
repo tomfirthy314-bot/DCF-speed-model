@@ -1,6 +1,9 @@
 # Streamlit secrets (never commit)
 .streamlit/secrets.toml
 
+# GitHub token (never commit)
+.github_token
+
 # Output files
 xl outputs/
 dev_outputs/
