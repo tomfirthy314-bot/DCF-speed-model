@@ -230,6 +230,26 @@ def run_standardiser(scraper_output: dict) -> dict:
                 "note":            "backfilled from stats — not period-specific",
             })
 
+        # Last-resort: derive shares from net_income / eps_diluted if still missing
+        # (works when macrotrends provides EPS but Yahoo stats are rate-limited)
+        if "shares_outstanding" not in canon_year:
+            _ni  = canon_year.get("net_income")
+            _eps = canon_year.get("eps_diluted")
+            if _ni is not None and _eps is not None and abs(_eps) > 0.001 and _ni / _eps > 0:
+                _derived_shares = _ni / _eps
+                canon_year["shares_outstanding"]                          = _derived_shares
+                canon_year["_sources"]["shares_outstanding"]              = "derived:net_income/eps_diluted"
+                canon_year["_mapping_confidence"]["shares_outstanding"]   = "low"
+                field_mapping_table.append({
+                    "raw_field":       "net_income / eps_diluted",
+                    "canonical_field": "shares_outstanding",
+                    "year":            year,
+                    "source":          "derived:net_income/eps_diluted",
+                    "confidence":      "low",
+                    "value":           _derived_shares,
+                    "note":            "derived as net_income ÷ eps_diluted — use with caution",
+                })
+
         canonical_by_year[year] = canon_year
 
     # -------------------------------------------------------------------------
