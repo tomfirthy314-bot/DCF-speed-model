@@ -1,0 +1,15 @@
+# Streamlit secrets (never commit)
+.streamlit/secrets.toml
+
+# Output files
+xl outputs/
+dev_outputs/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# OS
+.DS_Store
