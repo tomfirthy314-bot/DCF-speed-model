@@ -174,7 +174,127 @@ def fetch_fmp_crosscheck(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Role 2: Peer list
+# Role 2: Market stats fallback (when Yahoo .info is rate-limited)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def fetch_fmp_stats(ticker: str, key: str | None = None) -> dict:
+    """
+    Fetch company profile + quote from FMP to fill stats gaps left by Yahoo
+    rate-limiting.  Uses 2 API calls.
+
+    Returns a dict with the same keys as yahoo.py's stats dict (subset).
+    All missing fields are None so callers can safely .get() without KeyError.
+    """
+    key = key or get_api_key()
+    if not key:
+        return {"available": False, "reason": "No FMP_API_KEY set."}
+
+    fmp_ticker = _to_fmp_ticker(ticker)
+    out: dict = {"available": False, "reason": None}
+
+    # --- Profile: name, sector, country, currency, exchange, beta, description ---
+    try:
+        resp = requests.get(
+            f"{_BASE}/profile/{fmp_ticker}",
+            params={"apikey": key}, timeout=_TIMEOUT,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        p = data[0] if isinstance(data, list) and data else {}
+
+        ccy = p.get("currency", "")
+        raw_price = p.get("price")
+        # FMP UK stocks: price is already in GBP (not GBp like Yahoo)
+        out.update({
+            "company_name":       p.get("companyName"),
+            "currency":           ccy,
+            "exchange":           p.get("exchangeShortName"),
+            "sector":             p.get("sector"),
+            "industry":           p.get("industry"),
+            "country":            p.get("country"),
+            "current_price":      float(raw_price) if raw_price is not None else None,
+            "market_cap":         float(p["mktCap"]) if p.get("mktCap") else None,
+            "beta":               float(p["beta"]) if p.get("beta") else None,
+            "dividend_yield":     float(p["lastDiv"]) / float(raw_price) if p.get("lastDiv") and raw_price else None,
+        })
+        out["available"] = True
+        time.sleep(_RATE_SLEEP)
+    except Exception as e:
+        out["reason"] = f"FMP profile failed: {e}"
+
+    # --- Quote: shares outstanding, PE, EPS ---
+    try:
+        resp = requests.get(
+            f"{_BASE}/quote/{fmp_ticker}",
+            params={"apikey": key}, timeout=_TIMEOUT,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        q = data[0] if isinstance(data, list) and data else {}
+
+        if q.get("price") and out.get("current_price") is None:
+            out["current_price"] = float(q["price"])
+        if q.get("marketCap") and out.get("market_cap") is None:
+            out["market_cap"] = float(q["marketCap"])
+        out["shares_outstanding"] = float(q["sharesOutstanding"]) if q.get("sharesOutstanding") else None
+        out["trailing_pe"]        = float(q["pe"]) if q.get("pe") else None
+        out["eps_diluted"]        = float(q["eps"]) if q.get("eps") else None
+        out["available"] = True
+    except Exception as e:
+        if not out.get("available"):
+            out["reason"] = f"FMP quote failed: {e}"
+
+    return out
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Role 3: Financial statements (backup source when Yahoo is incomplete)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def fetch_fmp_financials(ticker: str, key: str | None = None) -> dict:
+    """
+    Fetch full income statement, balance sheet, and cash flow from FMP.
+    Used as a backup data source in reconciliation when Yahoo data is sparse.
+
+    Returns:
+      {
+        "available":        bool,
+        "financials_by_year": { "2024": { canonical_field: value }, ... },
+        "years_available":  [...],
+      }
+    """
+    key = key or get_api_key()
+    if not key:
+        return {"available": False, "reason": "No FMP_API_KEY set.", "financials_by_year": {}, "years_available": []}
+
+    fmp_ticker = _to_fmp_ticker(ticker)
+    by_year: dict[str, dict] = {}
+    fields_covered: list[str] = []
+
+    for statement, field_map in [
+        ("income-statement",      _IS_MAP),
+        ("balance-sheet-statement", _BS_MAP),
+        ("cash-flow-statement",   _CF_MAP),
+    ]:
+        rows = _fetch_statement(fmp_ticker, statement, key)
+        _merge_rows(rows, field_map, by_year, fields_covered)
+        time.sleep(_RATE_SLEEP)
+
+    if not by_year:
+        return {"available": False, "reason": f"FMP returned no financials for {fmp_ticker}.",
+                "financials_by_year": {}, "years_available": []}
+
+    return {
+        "available":          True,
+        "financials_by_year": by_year,
+        "years_available":    sorted(by_year.keys(), reverse=True),
+        "fields_covered":     sorted(set(fields_covered)),
+        "ticker_used":        fmp_ticker,
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Role 4: Peer list
 # ─────────────────────────────────────────────────────────────────────────────
 
 def fetch_fmp_peers(ticker: str, key: str | None = None) -> dict:
