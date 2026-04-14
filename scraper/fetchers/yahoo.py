@@ -155,6 +155,42 @@ def search_ticker(company_input: str) -> tuple[str, str]:
     )
 
 
+def _fast_info_fallback(t: yf.Ticker) -> dict:
+    """
+    Pull critical market data from yfinance fast_info (lightweight endpoint,
+    much less prone to rate-limiting than .info). Returns a partial stats dict
+    with the most important fields for the DCF model.
+    """
+    out = {}
+    try:
+        fi = t.fast_info
+        raw_price = getattr(fi, "last_price", None) or getattr(fi, "regular_market_price", None)
+        currency  = getattr(fi, "currency", None) or ""
+
+        if currency == "GBp" and raw_price is not None:
+            raw_price = raw_price / 100   # pence → pounds
+            currency  = "GBP"
+
+        out["current_price"]      = raw_price
+        out["market_cap"]         = getattr(fi, "market_cap", None)
+        out["shares_outstanding"] = getattr(fi, "shares", None)
+        out["currency"]           = currency
+        out["exchange"]           = getattr(fi, "exchange", None)
+    except Exception:
+        pass
+
+    # Last-resort price: close from most recent trading day via history()
+    if out.get("current_price") is None:
+        try:
+            hist = t.history(period="5d")
+            if not hist.empty:
+                out["current_price"] = float(hist["Close"].iloc[-1])
+        except Exception:
+            pass
+
+    return out
+
+
 def fetch_yahoo_data(ticker: str) -> dict:
     """
     Pull all three financial statements plus key stats from Yahoo Finance.
@@ -219,6 +255,21 @@ def fetch_yahoo_data(ticker: str) -> dict:
         "dividend_yield":       info.get("dividendYield"),
         "payout_ratio":         info.get("payoutRatio"),
     }
+
+    # -------------------------------------------------------------------------
+    # Fast-info fallback — patches critical market fields when .info was
+    # rate-limited (returns empty dict). Uses a lightweight Yahoo endpoint.
+    # -------------------------------------------------------------------------
+    _missing_critical = (
+        stats.get("current_price") is None
+        or stats.get("market_cap") is None
+        or stats.get("currency") in (None, "")
+    )
+    if _missing_critical:
+        _fb = _fast_info_fallback(t)
+        for _k, _v in _fb.items():
+            if stats.get(_k) is None and _v is not None:
+                stats[_k] = _v
 
     # -------------------------------------------------------------------------
     # Financial statements (annual, last 4-5 years)
