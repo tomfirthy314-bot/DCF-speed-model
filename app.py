@@ -525,7 +525,7 @@ def _render_result(valued: dict):
   <div class="metric-row">
     <div class="metric-block">
       <div class="metric-label">Market Price</div>
-      <div class="metric-value">{ccy} {price:.2f}</div>
+      <div class="metric-value">{f"{ccy} {price:.2f}" if price is not None else "—"}</div>
     </div>
     <div class="metric-block">
       <div class="metric-label">Implied Return</div>
@@ -533,7 +533,7 @@ def _render_result(valued: dict):
     </div>
     <div class="metric-block">
       <div class="metric-label">Terminal Value %</div>
-      <div class="metric-value">{tv_pct:.0%}</div>
+      <div class="metric-value">{f"{tv_pct:.0%}" if tv_pct is not None else "—"}</div>
     </div>
     <div class="metric-block">
       <div class="metric-label">Checks</div>
@@ -544,7 +544,7 @@ def _render_result(valued: dict):
   <div class="scenario-row">
     <div class="scenario-cell">
       <div class="scenario-name">Bear case</div>
-      <div class="scenario-vps">{ccy} {bear_vps:.2f}</div>
+      <div class="scenario-vps">{f"{ccy} {bear_vps:.2f}" if bear_vps is not None else "—"}</div>
     </div>
     <div class="scenario-cell" style="border:1px solid #3b4a6b;">
       <div class="scenario-name" style="color:#88c0d0;">Base case</div>
@@ -552,7 +552,7 @@ def _render_result(valued: dict):
     </div>
     <div class="scenario-cell">
       <div class="scenario-name">Bull case</div>
-      <div class="scenario-vps">{ccy} {bull_vps:.2f}</div>
+      <div class="scenario-vps">{f"{ccy} {bull_vps:.2f}" if bull_vps is not None else "—"}</div>
     </div>
   </div>
 

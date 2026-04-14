@@ -251,15 +251,16 @@ def run_assumption_engine(classified: dict) -> dict:
     # -------------------------------------------------------------------------
     tax_rate    = norm.get("tax_rate")
     tax_entry   = norm.get("tax_rate")
-    tax_method  = "sourced_from_normaliser"
-    tax_tag     = "rule_based"
-    tax_note    = f"Effective tax rate {tax_rate*100:.1f}% from normaliser (median of historical rates)."
     if tax_rate is None:
         tax_rate   = 0.25
         tax_method = "rule_based_default"
         tax_tag    = "default"
         tax_note   = "No tax data available — defaulting to 25%. Analyst override recommended."
         warnings.append("WARNING: Tax rate defaulted to 25% — no historical tax data available")
+    else:
+        tax_method = "sourced_from_normaliser"
+        tax_tag    = "rule_based"
+        tax_note   = f"Effective tax rate {tax_rate*100:.1f}% from normaliser (median of historical rates)."
 
     tax_assumption = {
         "value":     round(tax_rate, 4),
