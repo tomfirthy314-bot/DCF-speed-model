@@ -146,7 +146,20 @@ def run_standardiser(scraper_output: dict) -> dict:
     unmapped_raw_fields: set[str]      = set()
 
     # Shares outstanding from stats — used as fallback if not in year data
+    # Priority: sharesOutstanding → floatShares → market_cap / price
     stats_shares = stats.get("shares_outstanding")
+    _shares_source = "yahoo_stats"
+    if stats_shares is None:
+        float_shares = stats.get("shares_float")
+        if float_shares is not None:
+            stats_shares = float_shares
+            _shares_source = "yahoo_stats_float"
+    if stats_shares is None:
+        _mktcap = stats.get("market_cap")
+        _price  = stats.get("current_price")
+        if _mktcap and _price and _price > 0:
+            stats_shares = _mktcap / _price
+            _shares_source = "derived:market_cap/price"
 
     # -------------------------------------------------------------------------
     # Map each year
@@ -205,16 +218,16 @@ def run_standardiser(scraper_output: dict) -> dict:
         # Backfill shares_outstanding from stats if not present in this year
         if "shares_outstanding" not in canon_year and stats_shares is not None:
             canon_year["shares_outstanding"]                          = stats_shares
-            canon_year["_sources"]["shares_outstanding"]              = "yahoo_stats"
+            canon_year["_sources"]["shares_outstanding"]              = _shares_source
             canon_year["_mapping_confidence"]["shares_outstanding"]   = "medium"
             field_mapping_table.append({
                 "raw_field":       "shares_outstanding (point-in-time stats)",
                 "canonical_field": "shares_outstanding",
                 "year":            year,
-                "source":          "yahoo_stats",
+                "source":          _shares_source,
                 "confidence":      "medium",
                 "value":           stats_shares,
-                "note":            "backfilled from current stats — not period-specific",
+                "note":            "backfilled from stats — not period-specific",
             })
 
         canonical_by_year[year] = canon_year
